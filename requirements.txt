@@ -1,0 +1,6 @@
+numpy==1.24.3
+tensorboard==2.14.0
+tensorboard-data-server==0.7.2
+torch==1.8.0+cu111
+tqdm==4.66.1
+
