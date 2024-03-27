@@ -1,5 +1,4 @@
 import numpy as np
-from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from env import environment
 import copy
@@ -26,53 +25,67 @@ class QLearning:
     
     def learn(self, epoch=1000):
         for i in tqdm(range(epoch)):
-            self.state = copy.deepcopy(self.env.reset())
+            state = copy.deepcopy(self.env.reset())
             episode_reward = 0
 
             while True:
                 self.env.is_carrot()
                 self.env.is_barrier()
-                state_index = self.get_state_index(self.state)
+                state_index = self.get_state_index(state)
+            
                 if np.random.rand() < self.epsilon:
                     action = np.random.randint(low=0, high=self.env.num_actions)
                 else:
                     action = np.argmax(self.Q[state_index])
-                
-                self.env.pre_current = copy.deepcopy(self.env.current)
-                next_state, reward, done = self.env.step(action, self.env.pre_current)
+               
+                pre_current = copy.deepcopy(self.env.current)
+                next_state, reward, done = self.env.step(action, pre_current)
                 next_state_index = self.get_state_index(next_state)
-                episode_reward += reward
-                self.Q[state_index, action] = self.Q[state_index, action] + self.alpha * (
-                    reward + np.max(self.Q[next_state_index]) - self.Q[state_index, action]
-                )
 
-                self.state = copy.deepcopy(next_state)
-                if done or self.env.check_moved(self.env.current):
-                    self.total_reward = copy.deepcopy(episode_reward)
-                    episode_reward = 0
+                # if current can't move, reset position
+                if self.env.check_moved(self.env.current):
+                    self.Q[state_index, action] -= 100
                     self.env.graph = copy.deepcopy(self.env.graph_backup)
-                    self.env.reset()
+                    self.env.current = copy.deepcopy(self.env.reset())
+                    continue
+
+                # if position not change, increase the punishment
+                if state_index == next_state_index:
+                    reward -= 100
+
+                episode_reward += reward
+                
+                #  Q value will be zero when it arrive goal
+                # minus 1 to eval
+                self.Q[state_index, action] = self.Q[state_index, action] + self.alpha * (
+                    reward + (self.gamma*np.max(self.Q[next_state_index])) - self.Q[state_index, action]) - 0.1
+                state = copy.deepcopy(next_state)
+
+                if done: 
                     break
-            self.writer.add_scalar("total reward", self.total_reward, i)
-        self.writer.close()
 
     def eval_policy(self):
         self.env.graph = copy.deepcopy(self.env.graph_backup)
-        self.env.current = self.env.get_index(self.env.start, self.env.graph)[0]
+        self.env.current = copy.deepcopy(self.env.start_position)
         total_reward = 0
+
         while True:
-            self.env.pre_current = copy.deepcopy(self.env.current) 
-            action = np.argmax(self.Q[self.get_state_index(self.env.current)])
-            state, reward, done = self.env.step(action, self.env.pre_current)
+            current_index = self.get_state_index(self.env.current)
+            action = np.argmax(self.Q[current_index])
+            if self.Q[current_index, action] == 0:
+                self.Q[current_index, action] = float('-inf')
+                continue
+            pre_current = copy.deepcopy(self.env.current)
+            state, reward, done = self.env.step(action, pre_current)
+            
             self.path.append(self.actions[action])
             total_reward += reward
-
+            
             if done:
                 break
         return total_reward
     
 if __name__ == '__main__':
-    # pdb.set_trace()
     G = np.array(
         [[1, 1, 1, 1, 1, 1, 1, 1],
          [1, 1, 1, 1, 1, 1, 1, 1],
@@ -86,7 +99,7 @@ if __name__ == '__main__':
 
     env = Environment(G)
     model = QLearning(env)
-    model.learn(5000)
+    model.learn(1)
     _ = model.eval_policy()
     print(model.env.graph)
     print(f"reward: {_}")
