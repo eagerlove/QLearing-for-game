@@ -19,6 +19,6 @@ prompt> tensorborad --logdir=./runs
 # Tips
 Due to the limited ability of the editor, the auxiliary AI can only solve the previous levels where only carrot items exist.
 Like this:
-![](./example.jpg)
+<img src="example.jpg" title="Preview" height="50%" width="50%" > 
 
 # Have a good time!
